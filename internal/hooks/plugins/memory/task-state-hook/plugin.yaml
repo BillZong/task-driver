@@ -1,0 +1,4 @@
+name: task-state-hook
+description: "Thin HTTP bridge: captures on_pre_compress / on_session_switch hooks and forwards to Go Task Driver"
+version: 1.0.0
+author: Bill Zong
