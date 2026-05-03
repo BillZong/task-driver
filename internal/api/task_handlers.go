@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/BillZong/task-driver/internal/config"
 	"github.com/BillZong/task-driver/internal/db"
@@ -404,7 +405,7 @@ func ResumeHandler(database *sql.DB, cfg *config.Config) http.HandlerFunc {
 		agentCfg, ok := cfg.Agents[task.AgentID]
 		resumeCmd := ""
 		if ok {
-			resumeCmd = agentCfg.ResumeCmd
+			resumeCmd = strings.ReplaceAll(agentCfg.ResumeCmd, "{session_id}", task.AgentSessionID)
 		}
 
 		resp := model.ResumeResponse{
