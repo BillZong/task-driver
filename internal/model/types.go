@@ -163,11 +163,18 @@ type ErrorResponse struct {
 	Error string `json:"error"`
 }
 
+type CompressionInfo struct {
+	Threshold       float64 `json:"threshold"`
+	ContextWindow   int     `json:"context_window"`
+	ThresholdTokens int     `json:"threshold_tokens"`
+}
+
 type HealthResponse struct {
-	Alive     bool   `json:"alive"`
-	DBSize    string `json:"db_size"`
-	TaskCount int    `json:"task_count"`
-	Uptime    string `json:"uptime"`
+	Alive       bool              `json:"alive"`
+	DBSize      string            `json:"db_size"`
+	TaskCount   int               `json:"task_count"`
+	Uptime      string            `json:"uptime"`
+	Compression *CompressionInfo  `json:"compression,omitempty"`
 }
 
 // ── 辅助函数 ──────────────────────────────────────────────

@@ -8,16 +8,17 @@ import (
 	"os"
 	"time"
 
+	"github.com/BillZong/task-driver/internal/config"
 	"github.com/BillZong/task-driver/internal/model"
 )
 
 // HealthHandler returns an http.HandlerFunc that reports service health.
 // dbPath is the filesystem path to the SQLite database file.
-func HealthHandler(db *sql.DB, dbPath string) http.HandlerFunc {
+func HealthHandler(db *sql.DB, cfg *config.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Get database file size
 		dbSize := "unknown"
-		if fi, err := os.Stat(dbPath); err == nil {
+		if fi, err := os.Stat(cfg.DB); err == nil {
 			dbSize = formatBytes(fi.Size())
 		}
 
@@ -34,6 +35,14 @@ func HealthHandler(db *sql.DB, dbPath string) http.HandlerFunc {
 			DBSize:    dbSize,
 			TaskCount: taskCount,
 			Uptime:    uptime,
+		}
+
+		if cfg.Compression != nil {
+			resp.Compression = &model.CompressionInfo{
+				Threshold:       cfg.Compression.Threshold,
+				ContextWindow:   cfg.Compression.ContextWindow,
+				ThresholdTokens: cfg.Compression.ThresholdTokens(),
+			}
 		}
 
 		w.Header().Set("Content-Type", "application/json")

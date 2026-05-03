@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/BillZong/task-driver/internal/config"
+	"github.com/BillZong/task-driver/internal/metrics"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
@@ -36,7 +37,12 @@ func NewRouter(db *sql.DB, cfg *config.Config) http.Handler {
 	r.Use(middleware.Recoverer)
 
 	// Health
-	r.Get("/health", HealthHandler(db, cfg.DB))
+	r.Get("/health", HealthHandler(db, cfg))
+
+	// Prometheus metrics（标准格式：prometheus 原生抓取 + 自定义上报入口）
+	r.Get("/metrics", metrics.Handler().ServeHTTP)
+	r.Post("/metrics/tokens", metrics.TokenReportHandler)
+	r.Post("/metrics/latency", metrics.LatencyReportHandler)
 
 	// Task routes
 	r.Post("/task/create", CreateHandler(db, cfg))

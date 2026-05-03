@@ -1,5 +1,12 @@
 listen: ":9876"
 db: "~/.config/task-driver/tasks.db"
+
+# 压缩阈值配置（用于动态计算 compression_boundary 触发时机）
+# threshold_percent * context_window = 触发 checkpoint 的 token 数
+compression:
+  threshold: 0.50        # 50%（超过此比例触发 compression_boundary）
+  context_window: 1048576 # 模型上下文窗口（DeepSeek V4 Pro = 1M tokens）
+
 agents:
   hermes:
     resume_cmd: "hermes run --resume {session_id}"
