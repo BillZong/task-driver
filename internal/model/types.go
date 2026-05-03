@@ -1,6 +1,9 @@
 package model
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // ── 状态枚举 ──────────────────────────────────────────────
 
@@ -185,4 +188,14 @@ func NowISO() string {
 
 func IsTerminalStatus(s TaskStatus) bool {
 	return s == TaskCompleted || s == TaskFailed || s == TaskCancelled
+}
+
+// ParsePlan parses a JSON array string back into []string.
+func ParsePlan(planJSON string) []string {
+	var result []string
+	if planJSON == "" {
+		return result
+	}
+	_ = json.Unmarshal([]byte(planJSON), &result)
+	return result
 }

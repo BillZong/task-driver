@@ -72,17 +72,30 @@ func ReorderSteps(db *sql.DB, taskID string, stepOrder []int) error {
 	}
 	defer tx.Rollback()
 
-	stmt, err := tx.Prepare(
+	// First, shift all steps to temporary negative indices to avoid UNIQUE conflicts
+	// Use: new_index = -(old_index + 1) as temporary offset
+	tempStmt, err := tx.Prepare(
 		`UPDATE task_steps SET step_index=? WHERE task_id=? AND step_index=?`,
 	)
 	if err != nil {
-		return fmt.Errorf("reorder steps prepare: %w", err)
+		return fmt.Errorf("reorder steps prepare temp: %w", err)
 	}
-	defer stmt.Close()
+	defer tempStmt.Close()
 
-	for newIndex, oldIndex := range stepOrder {
-		if _, err := stmt.Exec(newIndex, taskID, oldIndex); err != nil {
-			return fmt.Errorf("reorder step %d->%d for task %q: %w", oldIndex, newIndex, taskID, err)
+	for _, oldIndex := range stepOrder {
+		tempIndex := -(oldIndex + 1)
+		if _, err := tempStmt.Exec(tempIndex, taskID, oldIndex); err != nil {
+			return fmt.Errorf("reorder step temp %d->%d for task %q: %w", oldIndex, tempIndex, taskID, err)
+		}
+	}
+
+	// Now assign the final indices
+	for i, oldIndex := range stepOrder {
+		if _, err := tx.Exec(
+			`UPDATE task_steps SET step_index=? WHERE task_id=? AND step_index=?`,
+			i, taskID, -(oldIndex+1),
+		); err != nil {
+			return fmt.Errorf("reorder step final %d->%d for task %q: %w", -(oldIndex+1), i, taskID, err)
 		}
 	}
 
