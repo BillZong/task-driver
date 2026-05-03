@@ -1,0 +1,7 @@
+#!/bin/bash
+# 自动生成的 .gitignore
+/task-driver
+*.db
+*.db-wal
+*.db-shm
+config.local.yaml

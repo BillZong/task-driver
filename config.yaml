@@ -1,0 +1,9 @@
+listen: ":9876"
+db: "~/.config/task-driver/tasks.db"
+agents:
+  hermes:
+    resume_cmd: "hermes run --resume {session_id}"
+    description: "Hermes Agent"
+  claude-code:
+    resume_cmd: "claude -r {session_id}"
+    description: "Claude Code"
