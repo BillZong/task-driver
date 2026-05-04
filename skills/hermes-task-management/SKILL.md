@@ -193,12 +193,106 @@ curl -s http://127.0.0.1:9876/task/unfinished
 - 询问是否继续
 
 如果用户确认继续：
+→ 进入 §2.5 完整恢复流程（详细版）。
+
+---
+
+### 2.5 完整恢复流程（详细版）
+
+当检测到未完成任务并确认恢复后，按以下**严格顺序**执行。
+
+#### 第 1 步：获取完整任务状态
 
 ```bash
-curl -s -X POST http://127.0.0.1:9876/task/{task_id}/resume
+curl -s http://127.0.0.1:9876/task/{task_id}
 ```
 
-返回中包含原 agent_id、agent_session_id、resume_cmd。使用该命令恢复。
+从返回中解析：
+- `task.goal` — 任务目标（恢复时对用户说的第一句话）
+- `task.plan` — JSON 数组，任务的完整计划
+- `task.current_step` — Driver 记录的当前步骤号（**不可信，需要验证**）
+- `task.agent_session_id` — 旧 session（可能已经失效）
+- `steps[]` — 每个步骤的状态和实际产出
+- `checkpoints[]` — 历史检查点
+
+#### 第 2 步：验证步骤一致性（关键）
+
+从 `steps[]` 中推导**真实的当前步骤**：
+
+```
+伪代码：
+real_current_step = 0
+for step in steps (按 step_index 升序):
+    if step.status == "completed" or step.status == "skipped":
+        real_current_step = step.step_index + 1
+    else:
+        break
+```
+
+**如果 `task.current_step != real_current_step`**：
+- task.current_step 可能因重启、代码 bug 等原因不准确
+- **以 `real_current_step` 为准**
+- 将真实下一步标记为 in_progress：
+  ```bash
+  curl -s -X POST http://127.0.0.1:9876/task/{task_id}/step \
+    -H 'Content-Type: application/json' \
+    -d '{"step_index":<real_current_step>,"status":"in_progress"}'
+  ```
+
+#### 第 3 步：更新 session 关联
+
+任务的 session_id 可能已经失效（重启后 session 变化）：
+
+```bash
+curl -s -X POST http://127.0.0.1:9876/task/{task_id}/session \
+  -H 'Content-Type: application/json' \
+  -d '{"agent_session_id":"<当前 Hermes session_id>"}'
+```
+
+#### 第 4 步：读取 checkpoint 上下文
+
+从 checkpoints[] 中找到**最近的一条**（按 created_at 排序取最后）。
+
+按优先级识别类型：
+1. `compression_boundary` — 最关键，包含了压缩前的完整上下文
+2. `phase_boundary` — 跨阶段时的快照
+3. `task_modified` — 计划修改记录，其 `environment.note` 包含用户修改需求
+4. `normal` — 普通检查点
+
+**每种 checkpoint 的使用方式：**
+
+- **monologue** → agent 当时在思考什么、下一步打算做什么。恢复时直接向用户复述。
+- **environment** → JSON 字符串，可能包含：`git_diff`、`file_paths`、`working_dir`、`note`
+- 对比当前 git diff 与 checkpoint 记录的 diff：如果不一致，说明在 agent 离线期间有人修改了代码，**必须先报告差异再继续**。
+
+#### 第 5 步：重建执行上下文并报告用户
+
+向用户输出恢复报告（中文）：
+
+```
+🔄 **任务恢复报告**
+
+**目标：** <task.goal>
+**进度：** <completed_count>/<total> 步骤已完成
+**当前步骤：** 步骤 <N> - <步骤描述>
+**最后更新：** <task.updated_at>
+**上次断点：** <最近 checkpoint 的 monologue 或 note，前 150 字>
+```
+
+**不要直接静默执行** — 让用户确认当前步骤是否仍然准确。任务可能在离线后被用户重新思考。
+
+#### 第 6 步：继续执行
+
+用户确认后：
+1. 当前步骤已是 in_progress（第 2 步已完成）
+2. 检查 `expected_outcome`（如果有），作为成功判定标准
+3. 按 plan 继续执行
+4. 每步完成后调用 `/step` 并附带 `actual_outcome`
+5. 关键决策点写 `normal` checkpoint
+
+#### resume 端点的角色
+
+`/task/{id}/resume` 返回 `resume_cmd` 时，说明原 agent 类型（hermes/claude-code/codex）已记录。但如果 `resume_cmd` 为空，或当前就是 Hermes，则 agent 直接在**当前 session** 中继续 — task 的 session_id 只是一个标签，不影响恢复能力。
 
 ### 3. 压缩感知
 

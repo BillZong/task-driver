@@ -154,9 +154,13 @@ func UpdateStepHandler(database *sql.DB, cfg *config.Config) http.HandlerFunc {
 			return
 		}
 
-		// Update current_step based on the step index if the step is now in_progress or completed
+		// Update current_step: completed → advance to next step; in_progress → point to this step
 		if req.Status == model.StepInProgress || req.Status == model.StepCompleted {
-			if err := db.UpdateCurrentStep(database, id, req.StepIndex); err != nil {
+			newCurrent := req.StepIndex
+			if req.Status == model.StepCompleted {
+				newCurrent = req.StepIndex + 1
+			}
+			if err := db.UpdateCurrentStep(database, id, newCurrent); err != nil {
 				writeError(w, http.StatusInternalServerError, "failed to update current step: "+err.Error())
 				return
 			}
